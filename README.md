@@ -19,34 +19,56 @@ jobs:
     steps:
       - name: Get repo files
         uses: actions/checkout@v4
+      
       - name: Configure build directory
         run: cmake -H. -B build
+      
       - name: Build project
         run: cmake --build build
-      - name: Upload artifacts
+      
+      - name: Upload entire build directory
         uses: actions/upload-artifact@v4
         with: 
-          name: Applications
-          path: |
-            ./build/hello_world
-            ./build/solver_app
+          name: build-folder
+          path: ./build/
+  
   test:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
+      - name: Download build folder
         uses: actions/download-artifact@v4
         with:
-          name: Applications
-          path: ./apps
-      - name: Fix permissions
+          name: build-folder
+          path: ./build
+      
+      - name: Find and run hello_world
         run: |
-          chmod +x ./apps/hello_world
-          chmod +x ./apps/solver_app
-      - name: Test hello_world
-        run: ./apps/hello_world
-      - name: Test solver
-        run: echo "1 5 -6" | ./apps/solver_app
+          echo "Searching for hello_world..."
+          HELLO=$(find ./build -type f -name "hello_world" -o -name "hello_world.exe" | head -1)
+          if [ -n "$HELLO" ]; then
+            chmod +x "$HELLO"
+            echo "Running: $HELLO"
+            "$HELLO"
+          else
+            echo "ERROR: hello_world not found"
+            find ./build -type f -executable | head -10
+            exit 1
+          fi
+      
+      - name: Find and run solver
+        run: |
+          echo "Searching for solver..."
+          SOLVER=$(find ./build -type f \( -name "solver_app" -o -name "solver" -o -name "solver_app.exe" -o -name "solver.exe" \) | head -1)
+          if [ -n "$SOLVER" ]; then
+            chmod +x "$SOLVER"
+            echo "Running: $SOLVER with input '1 5 -6'"
+            echo "1 5 -6" | "$SOLVER"
+          else
+            echo "ERROR: solver not found"
+            find ./build -type f -executable | head -10
+            exit 1
+          fi
 ```
 
 Я разбил workflow на два jobs , один для сборки, другой для первичного тестирования. Чтобы получить доступ к файлам из репозитория, использовал actions/checkout@v4, а чтобы передать собранные приложения между jobs использовал actions/upload-artifact@v4 и actions/download-artifact@v4. Также стоит отметить, что сначала в test приложения не запускались из-за отсутствия разрешения, поэтому пришлось добавить команды chmod +x.
