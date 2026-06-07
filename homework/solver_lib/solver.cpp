@@ -1,6 +1,10 @@
+#ifdef _WIN32
+    #include <cmath>
+#else
+    #include <math.h>
+#endif
 #include "solver.h"
 #include <iostream>
-#include <cmath>
 
 void solve(double a, double b, double c) {
     double d = b*b - 4*a*c;
