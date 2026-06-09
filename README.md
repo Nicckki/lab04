@@ -114,4 +114,58 @@ test_script:
 
 которое подключает одну из библиотек в зависимости от ОС.
 
+Добавим сборку для Windows с компиляторами GCC и Clang (помимо уже настроенной сборки для Visual Studio в AppVeyor).
+
+Вот как можно исправить appveyor.yml, чтобы включить нужные компиляторы:
+
+```yaml
+version: 1.0.{build}
+
+image: Visual Studio 2022  # Базовый образ, поддерживающий MSVC, GCC (через MSYS2) и Clang
+
+environment:
+  matrix:
+    # 1. Сборка с MSVC (оставляем как есть, но можно сузить до одной платформы для скорости)
+    - COMPILER: msvc
+      CMAKE_GENERATOR: "Visual Studio 17 2022"
+      PLATFORM: x64
+      CONFIGURATION: Release
+      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
+
+    # 2. Сборка с GCC (MinGW-w64)
+    - COMPILER: gcc
+      CMAKE_GENERATOR: "MinGW Makefiles"
+      PLATFORM: x64
+      CONFIGURATION: Release
+      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
+      MINGW_PATH: C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin # типичный путь в AppVeyor
+
+    # 3. Сборка с Clang (через MSVC的工具链 или standalone)
+    - COMPILER: clang
+      CMAKE_GENERATOR: "Visual Studio 17 2022"
+      PLATFORM: x64
+      CONFIGURATION: Release
+      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
+      EXTRA_CMAKE_FLAGS: "-T ClangCL"  # использует Clang из Visual Studio
+
+# Не используем старый matrix с fast_finish, т.к. определяем среду явно
+
+build_script:
+  - if "%COMPILER%"=="gcc" set PATH=%MINGW_PATH%;%PATH%
+  - echo "Using compiler: %COMPILER%"
+  - mkdir build
+  - cd build
+  - if "%COMPILER%"=="gcc" ( cmake -G "%CMAKE_GENERATOR%" -DCMAKE_BUILD_TYPE=%CONFIGURATION% .. )
+  - if "%COMPILER%"=="msvc" ( cmake -G "%CMAKE_GENERATOR%" -A %PLATFORM% .. )
+  - if "%COMPILER%"=="clang" ( cmake -G "%CMAKE_GENERATOR%" -A %PLATFORM% %EXTRA_CMAKE_FLAGS% .. )
+  - cmake --build . --config %CONFIGURATION%
+
+test_script:
+  - cd %CONFIGURATION%
+  - hello_world.exe
+  - echo 1 5 -6 | solver_app.exe
+```
+
+После изменения appveyor.yml и отправки в репозиторий, AppVeyor автоматически запустит сборки для всех трёх компиляторов. Результаты можно будет посмотреть на странице сборок AppVeyor.
+
 
